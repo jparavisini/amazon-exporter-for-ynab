@@ -101,7 +101,59 @@ function toIsoDate(longDate: string): string | null {
 
 // --- Transactions page ---
 
+/** Amazon serves two Transactions pages, chosen per account. The classic one
+ * renders rows as markup; the redesigned one embeds them as JSON in
+ * __NEXT_DATA__ and pages client-side, so only its first page is readable. */
 export function parseTransactionsPage($: CheerioAPI): {
+  charges: AmazonCharge[];
+  credits: AmazonCharge[];
+} {
+  return $('.apx-transactions-line-item-component-container').length > 0
+    ? parseTransactionsMarkup($)
+    : parseTransactionsJson($('script#__NEXT_DATA__').first().text() || '{}');
+}
+
+interface TransactionJson {
+  formattedAmount?: string;
+  formattedDate?: string;
+  orderData?: { orderDisplayString?: string }[];
+  statusInfo?: { amountDetailsStatusType?: string };
+  paymentMethodDisplayStringData?: {
+    paymentMethodName?: string;
+    paymentMethodNumber?: { lastDigits?: string };
+  };
+}
+
+function parseTransactionsJson(nextData: string): {
+  charges: AmazonCharge[];
+  credits: AmazonCharge[];
+} {
+  const charges: AmazonCharge[] = [];
+  const credits: AmazonCharge[] = [];
+  const list: TransactionJson[] =
+    JSON.parse(nextData)?.props?.pageProps?.state?.transactionResponseState
+      ?.visibleTransactionResponse?.transactionList ?? [];
+  for (const t of list) {
+    const amount = t.formattedAmount?.match(/\$([\d,]+\.\d{2})/)?.[1];
+    const dateText = t.formattedDate?.match(LONG_DATE_PATTERN)?.[1];
+    const date = dateText ? toIsoDate(dateText) : null;
+    const orderId = t.orderData?.[0]?.orderDisplayString?.match(
+      /((?:D\d{2}|\d{3})-\d{7}-\d{7})/,
+    )?.[1];
+    if (!amount || !date || !orderId) continue;
+    const card = t.paymentMethodDisplayStringData;
+    const digits = card?.paymentMethodNumber?.lastDigits;
+    (t.statusInfo?.amountDetailsStatusType === 'Refund' ? credits : charges).push({
+      orderId,
+      date,
+      amount: parseFloat(amount.replace(/,/g, '')),
+      paymentMethod: digits ? `${card?.paymentMethodName ?? 'Card'} ****${digits}` : '',
+    });
+  }
+  return { charges, credits };
+}
+
+function parseTransactionsMarkup($: CheerioAPI): {
   charges: AmazonCharge[];
   credits: AmazonCharge[];
 } {

@@ -1,6 +1,6 @@
 {
   "name": "amazon-exporter-for-ynab",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Chrome extension that matches Amazon order history to YNAB transactions: item-name memos, refund attribution, and per-item splits.",
   "private": true,
   "license": "MIT",

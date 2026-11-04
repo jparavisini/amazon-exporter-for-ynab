@@ -9,9 +9,8 @@ if (!file) {
   process.exit(1);
 }
 
-const captures: { orderId: string; html: string }[] = JSON.parse(
-  readFileSync(file, 'utf8'),
-);
+const { captures }: { captures: { orderId: string; html: string }[] } =
+  JSON.parse(readFileSync(file, 'utf8'));
 
 let failures = 0;
 for (const c of captures) {

@@ -282,8 +282,9 @@ export async function fetchAmazonCharges({
 // --- Order invoice (item names for the memo) ---
 
 /** Parse the invoice / Order Details page into a structured order. Handles
- * both the modern data-component page and the legacy print invoice. Returns
- * null when any required field can't be confidently extracted. */
+ * the modern data-component page, the Fresh / Whole Foods print page, and the
+ * legacy print invoice. Returns null when any required field can't be
+ * confidently extracted. */
 export function parseInvoice(html: string, orderId: string): AmazonOrder | null {
   const $ = load(html);
   const text = $('body').text().replace(/\s+/g, ' ');
@@ -294,7 +295,7 @@ export function parseInvoice(html: string, orderId: string): AmazonOrder | null 
     .match(LONG_DATE_PATTERN)?.[1];
   if (!dateText) {
     dateText = text.match(
-      new RegExp(`Order [Pp]laced:?\\s*${LONG_DATE_PATTERN.source}`),
+      new RegExp(`Order(?:ed| [Pp]laced:?)\\s*${LONG_DATE_PATTERN.source}`),
     )?.[1];
   }
   if (!dateText) return null;
@@ -329,6 +330,25 @@ export function parseInvoice(html: string, orderId: string): AmazonOrder | null 
       titles.length === prices.length ? parsePrice($(prices[i]).text()) : null,
     ),
   );
+  // Fresh / Whole Foods print page: one grid row per item, the product link in
+  // one cell and the line total in the last cell holding only a dollar amount.
+  // Weighed items add a note cell after the total, and their per-pound price
+  // cell holds more than the amount, so neither is mistaken for the total.
+  if (items.length === 0) {
+    $('[id$="-item-grid-row"]').each((_, el) => {
+      const $row = $(el);
+      const lineTotal = $row
+        .find('[role="gridcell"]')
+        .map((_, cell) => $(cell).text().trim())
+        .get()
+        .filter((t) => /^\$[\d,]+\.\d{2}$/.test(t))
+        .pop();
+      pushItem(
+        $row.find('a[href*="/gp/product/"]').first().text(),
+        lineTotal ? parsePrice(lineTotal) : null,
+      );
+    });
+  }
   // Legacy print page: italicized titles in the Items Ordered table, price in
   // the row's last cell.
   if (items.length === 0) {

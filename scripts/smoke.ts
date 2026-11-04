@@ -157,6 +157,65 @@ check(
   modern?.items,
 );
 
+// --- parseInvoice: Fresh / Whole Foods print page (captured November 2026) ---
+
+const freshRow = (asin: string, name: string, cells: string[]) => `
+  <div id="${asin}-item-grid-row" class="a-row" role="row">
+    <div class="a-column a-span1" role="gridcell"><img alt="${name}"/></div>
+    <div class="a-column a-span11" role="presentation">
+      <div class="a-column a-span6" role="gridcell">
+        <a class="a-link-normal" href="/gp/product/${asin}?ref_=uff_od_product"><span>${name}</span></a>
+      </div>
+      ${cells.map((c) => `<div class="a-column" role="gridcell">${c}</div>`).join('')}
+    </div>
+  </div>
+  <hr id="${asin}-item-grid-divider"/>`;
+
+const freshHtml = `
+<html><body>
+  <span>Order #: 114-0000000-0000001</span><br/>
+  <span>
+    Ordered October 31, 2026 12:27PM
+  </span>
+  <a href="/gp/product/B000NAV000">Recommended for you</a>
+  ${freshRow('B0787Y4X59', 'Bell &amp; Evans Chicken Breast Value Pack', [
+    '3',
+    '13.10 lb <span>($5.99/lb)</span>',
+    '$78.47',
+    '',
+    'Weight adjusted from est. 11.49 lb',
+  ])}
+  ${freshRow('B00QKXNH2Y', 'Traditional Lavash 5 Count', ['1', '', '$5.29'])}
+  <dl>
+    <dt>Item(s) Subtotal:</dt><dd>$83.76</dd>
+    <dt>Driver tip:</dt><dd>$7.00</dd>
+    <dt><span class="a-text-bold">Grand Total:</span></dt>
+    <dd><span class="a-text-bold">
+      $90.76
+    </span></dd>
+  </dl>
+</body></html>`;
+
+const fresh = parseInvoice(freshHtml, '114-0000000-0000001');
+check('fresh invoice parses', fresh !== null);
+check('fresh date', fresh?.date === '2026-10-31', fresh?.date);
+check('fresh total includes the tip', fresh?.total === 90.76, fresh?.total);
+check(
+  'fresh items skip links outside the item grid',
+  fresh?.items.map((i) => i.name).join(' | ') ===
+    'Bell & Evans Chicken Breast Value Pack | Traditional Lavash 5 Count',
+  fresh?.items,
+);
+check(
+  'fresh weighed item takes the line total, not the per-pound price',
+  fresh?.items[0]?.price === 78.47 && fresh?.items[1]?.price === 5.29,
+  fresh?.items,
+);
+check(
+  'fresh charge without the tip stays memo-only',
+  fresh !== null && buildSplits(fresh, 83.76) === null,
+);
+
 const garbage = parseInvoice('<html><body><h2>We\'re sorry!</h2></body></html>', 'x');
 check('unparseable invoice returns null', garbage === null);
 
